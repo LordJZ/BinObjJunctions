@@ -76,18 +76,29 @@ namespace BinObjJunction
 
             foreach (string path in tempPaths)
             {
-                if (JunctionPoint.Exists(path))
-                    continue;
-
                 string relativePath = MakeRelativePath(solution, path);
                 string targetPath = Path.Combine(junctionsRoot, relativePath);
 
+                bool correctJunctionExists = false;
+
+                if (JunctionPoint.Exists(path))
+                {
+                    string existingTarget = JunctionPoint.GetTarget(path);
+                    if (existingTarget == targetPath)
+                        correctJunctionExists = true;
+                    else
+                        continue;
+                }
+
                 Directory.CreateDirectory(targetPath);
 
-                Console.WriteLine("Creating junction:");
-                Console.WriteLine("  from " + path);
-                Console.WriteLine("    to " + targetPath);
-                JunctionPoint.Create(path, targetPath, false);
+                if (!correctJunctionExists)
+                {
+                    Console.WriteLine("Creating junction:");
+                    Console.WriteLine("  from " + path);
+                    Console.WriteLine("    to " + targetPath);
+                    JunctionPoint.Create(path, targetPath, false);
+                }
             }
         }
 

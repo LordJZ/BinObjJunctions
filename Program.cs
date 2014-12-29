@@ -81,13 +81,18 @@ namespace BinObjJunction
 
                 bool correctJunctionExists = false;
 
-                if (JunctionPoint.Exists(path))
+                if (Directory.Exists(path))
                 {
-                    string existingTarget = JunctionPoint.GetTarget(path);
-                    if (existingTarget == targetPath)
-                        correctJunctionExists = true;
-                    else
-                        continue;
+                    if (JunctionPoint.Exists(path))
+                    {
+                        string existingTarget = JunctionPoint.GetTarget(path);
+                        if (existingTarget == targetPath)
+                            correctJunctionExists = true;
+                        else
+                            continue;
+                    }
+                    else if (IsDirectoryEmpty(path))
+                        Directory.Delete(path, true);
                 }
 
                 Directory.CreateDirectory(targetPath);
@@ -161,6 +166,17 @@ namespace BinObjJunction
             }
 
             return relativePath;
+        }
+
+        static bool IsDirectoryEmpty(string path)
+        {
+            if (Directory.EnumerateFiles(path).Any())
+                return false;
+
+            if (Directory.EnumerateDirectories(path).Any(d => !IsDirectoryEmpty(d)))
+                return false;
+
+            return true;
         }
     }
 }

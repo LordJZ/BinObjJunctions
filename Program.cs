@@ -114,10 +114,13 @@ namespace BinObjJunction
                 string path = match.Groups[1].Value;
                 path = path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
 
+                path = Path.Combine(projFolder, path);
+
+                // this expands ..
+                path = Path.GetFullPath(path);
+
                 if (path.HasDotFolder())
                     continue;
-
-                path = Path.Combine(projFolder, path);
 
                 string[] parts = path.Split(Path.DirectorySeparatorChar);
                 for (int i = 2; i <= 4; i++)

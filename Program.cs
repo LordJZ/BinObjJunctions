@@ -36,7 +36,7 @@ namespace BinObjJunction
 
             try
             {
-                Work(solution, junctionsRoot);
+                Work(Path.GetFullPath(solution), Path.GetFullPath(junctionsRoot));
             }
             catch (Exception e)
             {
@@ -52,6 +52,7 @@ namespace BinObjJunction
         static void Work(string solution, string junctionsRoot)
         {
             HashSet<string> tempPaths = new HashSet<string>();
+            HashSet<string> binPaths = new HashSet<string>();
 
             foreach (string projFile in Directory.GetFiles(solution, "*.csproj", SearchOption.AllDirectories))
             {
@@ -64,7 +65,7 @@ namespace BinObjJunction
 
                 IEnumerable<Match> matches = s_outputPathRegex.Matches(projXml).Cast<Match>();
                 foreach (string path in matches.FindBinPaths(projFolder))
-                    tempPaths.Add(path.TrimEnd(Path.DirectorySeparatorChar));
+                    binPaths.Add(path.TrimEnd(Path.DirectorySeparatorChar));
 
                 tempPaths.Add(Path.Combine(projFolder, "obj"));
             }
@@ -74,37 +75,72 @@ namespace BinObjJunction
                 tempPaths.Add(Path.Combine(Path.GetDirectoryName(sln), "obj"));
             }
 
-            foreach (string path in tempPaths)
+            MakeJunctions(solution, junctionsRoot, tempPaths, true);
+            MakeJunctions(solution, Path.Combine(junctionsRoot, "_allbin"), binPaths, false);
+        }
+
+        static void MakeJunctions(string solution, string junctionsRoot, HashSet<string> paths, bool preserveRelative)
+        {
+            foreach (string path in paths)
+            {
+                MakeJunction(solution, junctionsRoot, path, preserveRelative);
+            }
+        }
+
+        static void MakeJunction(string solution, string junctionsRoot, string path, bool preserveRelative)
+        {
+            string targetPath;
+            string binRelative;
+            if (preserveRelative)
             {
                 string relativePath = MakeRelativePath(solution, path);
-                string targetPath = Path.Combine(junctionsRoot, relativePath);
-
-                bool correctJunctionExists = false;
-
-                if (Directory.Exists(path))
-                {
-                    if (JunctionPoint.Exists(path))
-                    {
-                        string existingTarget = JunctionPoint.GetTarget(path);
-                        if (existingTarget == targetPath)
-                            correctJunctionExists = true;
-                        else
-                            continue;
-                    }
-                    else if (IsDirectoryEmpty(path))
-                        Directory.Delete(path, true);
-                }
-
-                Directory.CreateDirectory(targetPath);
-
-                if (!correctJunctionExists)
-                {
-                    Console.WriteLine("Creating junction:");
-                    Console.WriteLine("  from " + path);
-                    Console.WriteLine("    to " + targetPath);
-                    JunctionPoint.Create(path, targetPath, false);
-                }
+                targetPath = Path.Combine(junctionsRoot, relativePath);
+                binRelative = null;
             }
+            else
+            {
+                targetPath = junctionsRoot;
+                //path = ReduceToBinFolder(path, out binRelative);
+            }
+
+            bool correctJunctionExists = false;
+
+            if (Directory.Exists(path))
+            {
+                if (JunctionPoint.Exists(path))
+                {
+                    string existingTarget = JunctionPoint.GetTarget(path);
+                    if (existingTarget == targetPath)
+                        correctJunctionExists = true;
+                    else
+                        return;
+                }
+                else if (IsDirectoryEmpty(path))
+                    Directory.Delete(path, true);
+            }
+
+            string parentPath = Path.GetDirectoryName(path);
+            if (!Directory.Exists(parentPath))
+                Directory.CreateDirectory(parentPath);
+
+            Directory.CreateDirectory(targetPath);
+
+            if (correctJunctionExists)
+                return;
+
+            try
+            {
+                JunctionPoint.Create(path, targetPath, false);
+            }
+            catch
+            {
+                Console.WriteLine("FAILED junction:");
+                Console.WriteLine("  from " + path);
+                Console.WriteLine("    to " + targetPath);
+            }
+
+            //if (binRelative != null)
+                //MakeJunction(null, targetPath, Path.Combine(targetPath, binRelative), false);
         }
 
         static IEnumerable<string> FindBinPaths(this IEnumerable<Match> matches, string projFolder)
@@ -122,22 +158,30 @@ namespace BinObjJunction
                 if (path.HasDotFolder())
                     continue;
 
-                string[] parts = path.Split(Path.DirectorySeparatorChar);
-                for (int i = 2; i <= 4; i++)
-                {
-                    if (parts.Length <= i)
-                        break;
-
-                    int binIdx = parts.Length - i;
-                    if (!parts[binIdx].Equals("bin", StringComparison.InvariantCultureIgnoreCase))
-                        continue;
-
-                    path = string.Join(Path.DirectorySeparatorChar.ToString(), parts.Take(binIdx + 1));
-                    break;
-                }
-
                 yield return path;
             }
+        }
+
+        static string ReduceToBinFolder(string folder, out string binRelative)
+        {
+            binRelative = null;
+
+            string[] parts = folder.Split(Path.DirectorySeparatorChar);
+            for (int i = 2; i <= 5; i++)
+            {
+                if (parts.Length <= i)
+                    break;
+
+                int binIdx = parts.Length - i;
+                if (!parts[binIdx].Equals("bin", StringComparison.InvariantCultureIgnoreCase))
+                    continue;
+
+                folder = string.Join(Path.DirectorySeparatorChar.ToString(), parts.Take(binIdx + 1));
+                binRelative = string.Join(Path.DirectorySeparatorChar.ToString(), parts.Skip(binIdx + 1));
+                break;
+            }
+
+            return folder;
         }
 
         // http://stackoverflow.com/a/340454/823663
@@ -176,7 +220,7 @@ namespace BinObjJunction
             if (Directory.EnumerateFiles(path).Any())
                 return false;
 
-            if (Directory.EnumerateDirectories(path).Any(d => !IsDirectoryEmpty(d)))
+            if (Directory.EnumerateDirectories(path).Any(d => JunctionPoint.Exists(d) || !IsDirectoryEmpty(d)))
                 return false;
 
             return true;

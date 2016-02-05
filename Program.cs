@@ -11,6 +11,9 @@ namespace BinObjJunction
 {
     static class Program
     {
+        const string ConfigurationMacro = "$(Configuration)";
+        const string SolutionDirMacro = "$(SolutionDir)";
+
         static bool HasDotFolder(this string str)
         {
             return str.Contains("\\.");
@@ -64,10 +67,11 @@ namespace BinObjJunction
                 string projXml = File.ReadAllText(projFile);
 
                 IEnumerable<Match> matches = s_outputPathRegex.Matches(projXml).Cast<Match>();
-                foreach (string path in matches.FindBinPaths(projFolder))
+                foreach (string path in matches.FindBinPaths(projFolder, solution))
                     binPaths.Add(path.TrimEnd(Path.DirectorySeparatorChar));
 
-                tempPaths.Add(Path.Combine(projFolder, "obj"));
+                if (!projXml.Contains("IntermediateOutputPath>"))
+                    tempPaths.Add(Path.Combine(projFolder, "obj"));
             }
 
             foreach (string sln in Directory.GetFiles(solution, "*.sln", SearchOption.AllDirectories))
@@ -83,7 +87,13 @@ namespace BinObjJunction
         {
             foreach (string path in paths)
             {
-                MakeJunction(solution, junctionsRoot, path, preserveRelative);
+                if (path.Contains(ConfigurationMacro))
+                {
+                    MakeJunction(solution, junctionsRoot, path.Replace(ConfigurationMacro, "Release"), preserveRelative);
+                    MakeJunction(solution, junctionsRoot, path.Replace(ConfigurationMacro, "Debug"), preserveRelative);
+                }
+                else
+                    MakeJunction(solution, junctionsRoot, path, preserveRelative);
             }
         }
 
@@ -143,12 +153,13 @@ namespace BinObjJunction
                 //MakeJunction(null, targetPath, Path.Combine(targetPath, binRelative), false);
         }
 
-        static IEnumerable<string> FindBinPaths(this IEnumerable<Match> matches, string projFolder)
+        static IEnumerable<string> FindBinPaths(this IEnumerable<Match> matches, string projFolder, string solutionFolder)
         {
             foreach (Match match in matches)
             {
                 string path = match.Groups[1].Value;
                 path = path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+                path = path.Replace(SolutionDirMacro, solutionFolder + Path.DirectorySeparatorChar);
 
                 path = Path.Combine(projFolder, path);
 

@@ -11,6 +11,9 @@ namespace BinObjJunction
 {
     static class Program
     {
+        const string ConfigurationMacro = "$(Configuration)";
+        const string SolutionDirMacro = "$(SolutionDir)";
+
         static bool HasDotFolder(this string str)
         {
             return str.Contains("\\.");
@@ -36,7 +39,7 @@ namespace BinObjJunction
 
             try
             {
-                Work(solution, junctionsRoot);
+                Work(Path.GetFullPath(solution), junctionsRoot);
             }
             catch (Exception e)
             {
@@ -63,7 +66,7 @@ namespace BinObjJunction
                 string projXml = File.ReadAllText(projFile);
 
                 IEnumerable<Match> matches = s_outputPathRegex.Matches(projXml).Cast<Match>();
-                foreach (string path in matches.FindBinPaths(projFolder))
+                foreach (string path in matches.FindBinPaths(projFolder, solution))
                     tempPaths.Add(path.TrimEnd(Path.DirectorySeparatorChar));
 
                 tempPaths.Add(Path.Combine(projFolder, "obj"));
@@ -107,12 +110,13 @@ namespace BinObjJunction
             }
         }
 
-        static IEnumerable<string> FindBinPaths(this IEnumerable<Match> matches, string projFolder)
+        static IEnumerable<string> FindBinPaths(this IEnumerable<Match> matches, string projFolder, string solutionFolder)
         {
             foreach (Match match in matches)
             {
                 string path = match.Groups[1].Value;
                 path = path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+                path = path.Replace(SolutionDirMacro, solutionFolder + Path.DirectorySeparatorChar);
 
                 path = Path.Combine(projFolder, path);
 
@@ -136,7 +140,13 @@ namespace BinObjJunction
                     break;
                 }
 
-                yield return path;
+                if (path.Contains(ConfigurationMacro))
+                {
+                    yield return path.Replace(ConfigurationMacro, "Release");
+                    yield return path.Replace(ConfigurationMacro, "Debug");
+                }
+                else
+                    yield return path;
             }
         }
 

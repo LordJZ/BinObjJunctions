@@ -176,7 +176,7 @@ namespace BinObjJunction
             if (Directory.EnumerateFiles(path).Any())
                 return false;
 
-            if (Directory.EnumerateDirectories(path).Any(d => !IsDirectoryEmpty(d)))
+            if (Directory.EnumerateDirectories(path).Any(d => JunctionPoint.Exists(d) || !IsDirectoryEmpty(d)))
                 return false;
 
             return true;

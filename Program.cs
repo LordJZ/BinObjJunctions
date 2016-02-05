@@ -69,7 +69,8 @@ namespace BinObjJunction
                 foreach (string path in matches.FindBinPaths(projFolder, solution))
                     tempPaths.Add(path.TrimEnd(Path.DirectorySeparatorChar));
 
-                tempPaths.Add(Path.Combine(projFolder, "obj"));
+                if (!projXml.Contains("IntermediateOutputPath>"))
+                    tempPaths.Add(Path.Combine(projFolder, "obj"));
             }
 
             foreach (string sln in Directory.GetFiles(solution, "*.sln", SearchOption.AllDirectories))
